@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+
+# Environments
+.venv/
+.venv312/
+.env
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# OS/editor noise
+.DS_Store
+.vscode/
+
+# Large experiment artifacts (not source)
+artifacts/
+checkpoints/
+datasets/
+logs/
+
+# Legacy transformer subfolder (managed separately)
+transfomer/
+
+# Legacy scratch files
+*.tmp
+*.bak
+
+# Paper build outputs (keep source files)
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.pdf
+
+# Keep paper source + figures
+!paper/main.tex
+!paper/references.bib
+!paper/corl_2026.sty
+!paper/corlabbrvnat.bst
+!paper/README.md
+!paper/figures/
+!paper/figures/**
+!paper/corl_templates/
+!paper/corl_templates/**
