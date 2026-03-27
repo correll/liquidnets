@@ -355,7 +355,12 @@
     \thispagestyle{empty}
     \@maketitle
     \@thanks
-    \@notice
+    \if@preprinttype
+      % In preprint mode, the template should not reserve first-page footer space.
+      % (The option description states: "camera-ready copy without the corl footnote")
+    \else
+      \@notice
+    \fi
   \endgroup
   \let\maketitle\relax
   \let\thanks\relax
@@ -434,7 +439,8 @@
         \end{tabular}%
       \fi
     \fi
-    \vskip 0.3in \@minus 0.1in
+    % Keep first-page flow compact so the introduction can begin on page 1.
+    \vskip 0.15in \@minus 0.05in
   }
 }
 

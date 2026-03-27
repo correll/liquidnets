@@ -30,21 +30,25 @@ PointMaze requires `mujoco` + `gymnasium-robotics` in the Python 3.12 environmen
 
 ## Key Figures
 
-### Push-T / PointMaze Open-Loop Comparison
+### Training Progress (Push-T vs RoboMimic Can vs PointMaze)
 
-![Fair comparison (Push-T)](liquid_vs_diffusion_fair_comparison_pusht.png)
+![Training progress](training_progress.png)
 
-### Task-Level Comparison Snapshot
+### Best-of-K Performance Curve
 
-![Comparison summary](liquid_vs_diffusion_comparison.png)
+![Best-of-K curve](best_of_k_curve.png)
 
-### Latency Comparison
+### Error vs Horizon Analysis
 
-![Latency comparison](latency_comparison.png)
+![Error vs Horizon](error_vs_horizon.png)
 
-### Push-T Training Progress
+### Qualitative Trajectory Samples
 
-![Push-T training progress](training_progress_pusht.png)
+![Qualitative samples](qualitative_samples.png)
+
+### Diversity vs Error Trade-off
+
+![Diversity vs Error](diversity_vs_error.png)
 
 ---
 
