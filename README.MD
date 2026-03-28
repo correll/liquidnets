@@ -16,6 +16,8 @@ Run notebooks in this order:
    Run Push-T closed-loop evaluation (Table 2 results).
 5. **05_libero_comparison.ipynb**  
    Optional: Extended analysis and comparisons.
+6. **06_robomimic_can_closedloop_eval.ipynb**  
+   Run RoboMimic Can checkpoint evaluation used in the paper's deployment table.
 
 ---
 
@@ -63,7 +65,10 @@ This work compares **Liquid Neural Networks with Mixture Density (MDN) heads** a
 - Achieve 2.4× lower offline prediction error
 - Run 1.8× faster at inference
 - Remain more robust across low-to-medium data regimes
-- Closed-loop validation confirms offline rankings on Push-T and PointMaze
+- Closed-loop validation now covers all three case studies:
+   - Push-T: 91.0% (Liquid) vs 88.0% (Diffusion)
+   - PointMaze: 20.0% / 9.7% (Success / Distance-Success, Liquid) vs 9.5% / 3.7% (Diffusion)
+   - RoboMimic Can: mean action $\ell_2$ 0.3257 (Liquid) vs 2.1633 (Diffusion)
 
 ---
 
@@ -86,7 +91,7 @@ All experiments follow a **fair shared-backbone protocol**:
    - Evaluation settings (rollout metrics, environments)
 3. **Tasks & Metrics:**
    - Push-T: Success %, reward over 100 episodes
-   - RoboMimic Can: Success % (task completion)
+   - RoboMimic Can: closed-loop action-tracking mean $\ell_2$ (lower is better)
    - PointMaze: Success % (environment flag) & Distance-Success (stricter 0.20 threshold)
 4. **Data Regimes:** Offline (1%–46.42% of training data) and closed-loop (100% data + adaptation)
 
@@ -95,4 +100,4 @@ All experiments follow a **fair shared-backbone protocol**:
 ## Legacy & Exploratory Code
 
 The `transfomer/` folder contains earlier baseline implementations and exploratory notebooks.  
-The numbered notebooks (01–05) represent the current canonical pipeline for paper reproducibility.
+The numbered notebooks (01–06) represent the current canonical pipeline for paper reproducibility.

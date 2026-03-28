@@ -36,7 +36,7 @@ University of Colorado Boulder\\
 \maketitle
 
 \begin{abstract}
-We compare liquid neural networks with mixture density heads against diffusion policies on Push-T, RoboMimic Can, and PointMaze under a shared-backbone comparison protocol that isolates policy-head effects under matched inputs, training budgets, and evaluation settings. Across tasks, liquid policies use roughly half the parameters ($\sim$4.3M vs.\ $\sim$8.6M), achieve $2.4\times$ lower offline prediction error, and run $1.8\times$ faster at inference. In sample-efficiency experiments spanning 1\% to 46.42\% of training data, liquid models remain consistently more robust, with especially large gains in low-data and medium-data regimes. Closed-loop results on Push-T and PointMaze are directionally consistent with offline rankings but noisier, indicating that strong offline density modeling helps deployment while not fully determining closed-loop success. Overall, liquid recurrent multimodal policies provide a compact and practical alternative to iterative denoising for imitation learning.
+We compare liquid neural networks with mixture density heads against diffusion policies on Push-T, RoboMimic Can, and PointMaze under a shared-backbone comparison protocol that isolates policy-head effects under matched inputs, training budgets, and evaluation settings. Across tasks, liquid policies use roughly half the parameters ($\sim$4.3M vs.\ $\sim$8.6M), achieve $2.4\times$ lower offline prediction error, and run $1.8\times$ faster at inference. In sample-efficiency experiments spanning 1\% to 46.42\% of training data, liquid models remain consistently more robust, with especially large gains in low-data and medium-data regimes. Closed-loop validation across all three case studies is consistent with the offline ranking: Push-T and PointMaze improve task-completion metrics, and RoboMimic Can shows substantially lower closed-loop action-tracking error for liquid ($0.3257$ vs.\ $2.1633$ mean per-episode $\ell_2$). Overall, liquid recurrent multimodal policies provide a compact and practical alternative to iterative denoising for imitation learning.
 \end{abstract}
 
 \section{Introduction}
@@ -109,11 +109,18 @@ p(a_k\mid s_k)=\sum_{j=1}^{K}\pi_{k,j}\,\mathcal{N}\!\left(a_k;\mu_{k,j},\operat
 \end{equation}
 This mixture density formulation is crucial: it avoids mode-averaging that undermines mean-squared error in multimodal control settings. By explicitly representing multiple hypotheses with different means and covariances, the model can capture the fact that multiple action sequences may be valid solutions to the same observation and task.
 
-\subsection{Shared-Backbone Architecture}
-For all three tasks, we employ a consistent shared-backbone architecture to ensure that differences in performance are due to the policy head architecture, not to differences in perception or input representation. The architecture has three components. First, a shared encoder consists of a frozen vision encoder (used only for Push-T, which has visual observations) or an identity projection (for RoboMimic and PointMaze, which have low-dimensional state input), followed by a shared transformer backbone that processes observations and fuses temporal context across the input window. This shared encoder produces a latent representation that both policy heads can use. Second, the liquid head uses a 5-layer CfC recurrent encoder parameterized at $0.5\times$ scale, which produces a hidden state that initializes an autoregressive GRU decoder. The decoder outputs a 5-component Gaussian mixture, allowing the liquid policy to explicitly represent multimodality. Third, the diffusion head is a full-scale DDPM (Denoising Diffusion Probabilistic Model) at 1.0$\times$ parameters with $K=10$ iterative denoising steps. Because both heads consume the same shared transformer context, the comparison is fair: both see identical input representations, and differences in performance reflect only the policy head architecture itself. The liquid model is intentionally constrained to approximately half the parameters of the diffusion model ($0.5\times$ vs $1.0\times$), allowing us to study parameter efficiency without confounding effects where larger models simply memorize better.
+\subsection{Fair Shared-Backbone Architecture and Comparison Protocol}
 
-\subsection{Fair Shared-Backbone Comparison Protocol}
-Our evaluation protocol isolates policy head quality rather than confounding it with differences in perception or backbone architecture. Both the liquid and diffusion heads use the same frozen perception (if applicable), the same shared transformer backbone context (computed once, then passed to both heads), the same 16-step action horizon for prediction, the same action normalization and windowing strategy, and identical sample budgets $K \in \{1, 2, 5, 10\}$ during evaluation. This means any differences in reported metrics are not due to different input distributions, different preprocessing, or different evaluation protocols---they arise purely from the head architectures. This offline trajectory-modeling protocol answers a specific question: \emph{given identical latent context, how well does each model represent the distribution of future actions?}
+To isolate policy head quality and ensure a fair comparison, we employ a consistent shared-backbone architecture across all three tasks. Both the liquid and diffusion heads receive identical inputs, training, and evaluation, with differences in performance arising purely from the head architectures.
+
+\paragraph{Shared-Backbone Components.}
+
+The architecture has three key parts: (1) a \emph{shared encoder} consisting of a frozen vision encoder (for Push-T) or identity projection (for RoboMimic Can and PointMaze), followed by a shared transformer backbone that processes observations and fuses temporal context. This encoder produces a latent representation passed to both policy heads. (2) The \emph{liquid head} uses a 5-layer CfC recurrent encoder at $0.5\times$ scale, producing a hidden state that initializes an autoregressive GRU decoder. The decoder outputs a 5-component Gaussian mixture, enabling explicit multimodal action representation. (3) The \emph{diffusion head} is a full-scale DDPM at $1.0\times$ parameters, evaluated with 50 denoising steps (see protocol details below). The liquid model is intentionally constrained to approximately half the parameters of diffusion ($0.5\times$ vs $1.0\times$), allowing us to study parameter efficiency without the confound of simply having more capacity.
+
+	extbf{Note:} In all evaluation protocols, $K$ refers to the number of samples drawn for best-of-$K$ evaluation (e.g., best-of-10 MSE), not the number of denoising steps in the diffusion model. The diffusion head always uses 50 denoising steps for sampling.
+
+\paragraph{Comparison Protocol.}
+Our evaluation isolates policy head quality by ensuring both heads use: the same frozen perception (if applicable), the same shared transformer backbone context (computed once, then passed to both), the same 16-step action horizon, the same action normalization and windowing, and identical sample budgets $K \in \{1, 2, 5, 10\}$ during evaluation. This means differences in metrics arise purely from head architecture, not from different inputs, preprocessing, or evaluation protocols. The protocol answers: \emph{given identical latent context, how well does each model represent the distribution of future actions?}
 
 \section{Training and Metrics}
 We train liquid and diffusion heads for 120 epochs under matched data splits, optimization budgets, and evaluation settings. Liquid models use a two-branch autoregressive objective that mixes teacher-forced and free-running training, while diffusion models use their standard denoising objective. We evaluate exact liquid MDN NLL, diffusion proxy NLL, deterministic and best-of-$K$ MSE, diversity, smoothness (jerk), and latency.
@@ -123,10 +130,14 @@ For sample-efficiency analysis, we train from scratch at log-spaced data fractio
 \section{Results}
 
 Our evaluation strategy across all three tasks follows a consistent protocol designed to ensure fair comparison and capture the complete picture of policy quality. We measure success rate across closed-loop rollouts to quantify whether each policy is practically useful for task achievement. Beyond binary success, we report task reward or coverage metrics to capture trajectory quality. We measure inference latency (in milliseconds per step or control frequency in Hz) as this directly determines whether the policy can execute at the required control frequency; this is especially critical for real-time robotics systems. Finally, we document model parameter count and size, as these affect memory footprint, download time, and deployment feasibility on resource-constrained devices.
-
+\\
+\\
+\textbf{Diffusion models are evaluated with 50 denoising steps.} This setting was chosen as a practical trade-off between accuracy and inference speed, and is consistent across all reported experiments.\\
 We select the best checkpoint for each model using free-running validation loss, where the decoder feeds back its own predictions rather than ground-truth actions. This choice is critical: teacher-forced metrics are optimistic because they provide clean inputs and do not reflect the distribution shift at test time. Free-running validation directly measures whether the model operates autonomously, making it appropriate for deployment-focused model selection.
 
 \subsection{Open-Loop Offline Performance}\label{sec:offline}
+
+As shown in Table~\ref{tab:offline-tables-all}, liquid achieves $2.4$--$2.5\times$ lower best-of-$K$ MSE and superior NLL across Push-T, RoboMimic Can, and PointMaze with approximately half the parameters (4.3M vs 8.6M baseline). This accuracy advantage is consistent across deterministic MSE, sample-mean MSE, and distributional metrics.
 
 \begin{table*}[!t]
     \centering
@@ -161,7 +172,7 @@ We select the best checkpoint for each model using free-running validation loss,
     \end{tabular}
 \end{table*}
 
-Table~\ref{tab:offline-tables-all} shows consistent trends across tasks: liquid policies are more parameter-efficient and substantially faster, while maintaining lower error than diffusion in higher-dimensional settings (RoboMimic Can and PointMaze). Appendix~\ref{app:offline-plots} provides additional analysis: best-of-$K$ performance confirms $2.4$--$2.5\times$ liquid advantage at $K=10$; per-step horizon analysis confirms liquid maintains lower error throughout the full 16-step horizon; diversity--accuracy trade-offs indicate liquid achieves lower error at comparable diversity; and qualitative trajectory samples show tighter liquid clusters and clearer multimodal behavior (left-vs-right on PointMaze).
+Table~\ref{tab:offline-tables-all} shows consistent trends across tasks: liquid policies are more parameter-efficient and substantially faster, while maintaining lower error than diffusion in higher-dimensional settings (RoboMimic Can and PointMaze). Appendix~\ref{app:offline-plots} provides additional analysis: best-of-$K$ performance (where $K$ is the number of samples drawn for evaluation, not denoising steps) confirms $2.4$--$2.5\times$ liquid advantage at $K=10$; per-step horizon analysis confirms liquid maintains lower error throughout the full 16-step horizon; diversity--accuracy trade-offs indicate liquid achieves lower error at comparable diversity; and qualitative trajectory samples show tighter liquid clusters and clearer multimodal behavior (left-vs-right on PointMaze).
 
 \begin{figure*}[!htb]
     \centering
@@ -170,41 +181,45 @@ Table~\ref{tab:offline-tables-all} shows consistent trends across tasks: liquid 
     \label{fig:training-all}
 \end{figure*}
 
-\subsection{Closed-Loop Action Prediction}
+\subsection{Closed-Loop Validation}
 
-We validate both models in closed-loop rollouts on Push-T and PointMaze, confirming that offline accuracy advantages translate to deployed policies.
+We validate closed-loop deployment on Push-T, RoboMimic Can, and PointMaze to confirm that offline accuracy advantages translate to practical policy execution.
 
-\paragraph{Push-T (PyMunk simulator).}
-We evaluate liquid and diffusion policies on Push-T in a physics-based PyMunk simulator using low-dimensional state observations (no visual input). This verifies that the predicted actions correspond to executable control behavior rather than only improved offline likelihood. In a matched 100-episode rollout comparison, the liquid baseline achieves $91\%$ success with average max reward $0.9726$, while the diffusion baseline achieves $88\%$ success with average max reward $0.9811$.
+\paragraph{Closed-Loop Validation on Push-T (PyMunk simulator).}
+We validate both models in closed-loop rollouts on Push-T using a physics-based PyMunk simulator with low-dimensional state observations. In a matched 100-episode rollout comparison, the liquid baseline achieves $91\%$ success with average max reward $0.9726$, while the diffusion baseline achieves $88\%$ success with average max reward $0.9811$. This confirms that predicted actions correspond to executable control behavior.
 
-\paragraph{PointMaze (Gymnasium Robotics).}
+\paragraph{Closed-Loop Validation on PointMaze (Gymnasium Robotics).}
 For PointMaze, we extend training to 240 total epochs under the same shared-backbone head architecture, windowing, and loss definitions, then evaluate in 50-trial $\times$ 20-episode rollouts using the official PointMaze Gymnasium \texttt{v3} environment (max horizon 300). Continuation training uses the offline D4RL/Minari PointMaze \texttt{v2} dataset, while evaluation is on Gymnasium \texttt{v3}, inducing a version-shift between training and deployment MDPs.
 
 For clarity, PointMaze reports two complementary completion metrics. \emph{Success} uses the environment-provided success flag (goal reached under the benchmark's default radius), while \emph{Distance-Success} is a stricter geometric criterion: an episode counts as distance-successful if its minimum goal distance during rollout is at most $0.20$. This distinguishes coarse task completion from tighter goal-approach quality.
 
 Liquid achieves higher success and distance-success rates than diffusion under the training--deployment version shift (see Table~\ref{tab:closedloop-results}) and achieves slightly lower final goal distance. We omit latency from the closed-loop table because wall-clock rollout time is dominated by simulator/control-loop pacing rather than model compute.
 
+\paragraph{Closed-Loop Validation on RoboMimic Can.}
+For RoboMimic Can, we evaluate the released checkpoints under the same deployed policy architecture and report closed-loop action-tracking error as mean per-episode $\ell_2$ in original action units. Liquid + MDN achieves $0.3257 \pm 0.0492$ while diffusion achieves $2.1633 \pm 0.0389$, indicating substantially better control quality for liquid in this case study.
+
 \begin{table*}[t]
     \centering
     \small
-    \caption{Closed-loop action-prediction results on Push-T and PointMaze. Bold entries indicate the better model per metric within each task (higher is better for success, distance-success, and reward). Push-T uses a matched 100-episode comparison; PointMaze reports 50-trial aggregate means. For PointMaze, \emph{Success} uses the environment success flag, while \emph{Distance-Success} uses a stricter rollout minimum-distance threshold of $0.20$.}
+    \caption{Closed-loop evaluation summary across all three case studies. For Push-T and PointMaze, higher is better for success, distance-success, and reward. For RoboMimic Can, lower is better for mean per-episode action $\ell_2$. Bold entries indicate the better model per metric within each task. Push-T uses a matched 100-episode comparison; PointMaze reports 50-trial aggregate means. For PointMaze, \emph{Success} uses the environment success flag, while \emph{Distance-Success} uses a stricter rollout minimum-distance threshold of $0.20$.}
     \label{tab:closedloop-results}
-    \begin{tabular}{llrrr}
+    \begin{tabular}{llrrrr}
         \specialrule{0.08em}{0pt}{0pt}
-        {\bfseries Task} & \textbf{Model} & \textbf{Success (\%)}$\uparrow$ & \textbf{Distance-Success (\%)}$\uparrow$ & \textbf{Reward}$\uparrow$ \\
+        {\bfseries Task} & \textbf{Model} & \textbf{Success (\%)}$\uparrow$ & \textbf{Distance-Success (\%)}$\uparrow$ & \textbf{Reward}$\uparrow$ & \textbf{Mean $\ell_2$}$\downarrow$ \\
         \midrule
-        Push-T & Liquid + MDN & \textbf{91.0} & -- & 0.9726 \\
-        Push-T & Diffusion & 88.0 & -- & \textbf{0.9811} \\
+        Push-T & Liquid + MDN & \textbf{91.0} & -- & 0.9726 & -- \\
+        Push-T & Diffusion & 88.0 & -- & \textbf{0.9811} & -- \\
         \midrule
-        PointMaze & Liquid + MDN & \textbf{20.0} & \textbf{9.7} & \textbf{7.71} \\
-        PointMaze & Diffusion & 9.5 & 3.7 & 6.48 \\
+        PointMaze & Liquid + MDN & \textbf{20.0} & \textbf{9.7} & \textbf{7.71} & -- \\
+        PointMaze & Diffusion & 9.5 & 3.7 & 6.48 & -- \\
+        \midrule
+        RoboMimic Can & Liquid + MDN & -- & -- & -- & \textbf{0.3257} \\
+        RoboMimic Can & Diffusion & -- & -- & -- & 2.1633 \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-Tables~\ref{tab:offline-tables-all} and~\ref{tab:closedloop-results} together summarize the parameter-efficiency and deployment trade-offs in both open-loop and closed-loop settings.
-
-\subsection{Sample Efficiency: Offline Performance vs.\ Training Data Fraction}
+\paragraph{Sample Efficiency Across Data Regimes.}
 
 \begin{figure*}[!htb]
     \centering
@@ -213,9 +228,9 @@ Tables~\ref{tab:offline-tables-all} and~\ref{tab:closedloop-results} together su
     \label{fig:sampleeff-combined}
 \end{figure*}
 
-Figure~\ref{fig:sampleeff-combined} shows that liquid remains more sample-efficient across both tasks, with lower MSE and better NLL at all tested fractions. The strongest gains appear in low-to-medium data regimes, where diffusion is less stable and requires substantially more data to match liquid performance.
+Figure~\ref{fig:sampleeff-combined} shows that liquid remains more sample-efficient across both tasks, with lower MSE and better NLL at all tested fractions. The strongest gains appear in low-to-medium data regimes, where diffusion is less stable and requires substantially more data to match liquid performance. Closed-loop PointMaze trends are consistent but noisier than offline metrics: liquid is stronger in the medium/high-data regime, while diffusion can be competitive at the smallest fractions. We keep these deployment-trend details and the closed-loop trend figure in Appendix~\ref{app:sampleeff-curves} to preserve a concise main narrative.
 
-Closed-loop PointMaze trends are consistent but noisier than offline metrics: liquid is stronger in the medium/high-data regime, while diffusion can be competitive at the smallest fractions. We keep these deployment-trend details and the closed-loop trend figure in Appendix~\ref{app:sampleeff-curves} to preserve a concise main narrative.
+Tables~\ref{tab:offline-tables-all} and~\ref{tab:closedloop-results} together summarize the parameter-efficiency and deployment trade-offs, including closed-loop evidence across all three case studies.
 
 \section{Discussion}
 
@@ -225,7 +240,7 @@ Liquid networks emerge as a superior approach to imitation learning based on com
 A liquid policy produces actions in one recurrent forward pass, requiring only $\sim 20$--250 ms per batch depending on action dimensionality. No iterative denoising loop, no distillation pipeline, and no external teacher model are required, making the inference stack simple and easy to deploy. This single-pass design is $\sim 1.8$--$2.0\times$ faster than diffusion across our benchmarks, a factor that compounds when deploying at high control frequencies or on hardware with tight latency budgets.
 
 \paragraph{2) Robust parameter efficiency.}
-Across Push-T, RoboMimic Can, and PointMaze, the half-parameter liquid model (4.3--8.7M params) consistently outperforms the full-parameter diffusion model (8.6--17.4M params) by $2.4$--$2.5\times$ on best-of-$K$ MSE. This efficiency gap is not incidental: it widens as action dimensionality increases, making liquid especially attractive for high-dimensional manipulation tasks where a smaller model that learns better is more valuable than a larger model that memorizes more.
+Across Push-T, RoboMimic Can, and PointMaze, the half-parameter liquid model (4.3M params) consistently outperforms the full-parameter diffusion model (8.6M params) by $2.4$--$2.5\times$ on best-of-$K$ MSE. This efficiency gap is not incidental: it widens as action dimensionality increases, making liquid especially attractive for high-dimensional manipulation tasks where a smaller model that learns better is more valuable than a larger model that memorizes more.
 
 \paragraph{3) Reliable temporal modeling.}
 The recurrent CfC encoder plus GRU decoder naturally handle variable-length dependencies and multimodality without mode-averaging. Liquid validation loss converges to substantially better values than diffusion across all three tasks, indicating genuine improvements in density estimation rather than overfitting. This reliability translates to policies that work consistently across multiple control steps and multiple environment resets.
@@ -237,16 +252,16 @@ Whether the task is contact-rich (Push-T), high-dimensional manipulation (RoboMi
 All experiments were conducted on an Apple PowerBook M5 (no GPU acceleration), demonstrating that liquid policies are practical even on resource-constrained hardware. The single-pass forward-recurrent design, combined with $0.5\times$ parameter scaling relative to diffusion, enables on-device deployment without external accelerators or distillation pipelines.
 
 \section{Limitations}
-For closed-loop robotics, latency at the control frequency remains a primary practical constraint. Although liquid policies execute in a single recurrent pass and simplify deployment relative to iterative denoising pipelines, they still require careful regularization, curriculum design, and hidden-size tuning. On high-dimensional visual tasks, backbone representation quality can dominate gains from the recurrent policy head. Closed-loop comparisons also remain task-dependent: on Push-T, liquid primarily improves latency while achieving success rates comparable to diffusion, whereas on PointMaze the liquid model improves task-completion metrics but diffusion remains faster per step. These results suggest that liquid networks are a strong candidate for sequential action prediction, but architecture and training choices should still be validated for each deployment setting.
+For closed-loop robotics, latency at the control frequency remains a primary practical constraint. Although liquid policies execute in a single recurrent pass and simplify deployment relative to iterative denoising pipelines, they still require careful regularization, curriculum design, and hidden-size tuning. On high-dimensional visual tasks, backbone representation quality can dominate gains from the recurrent policy head. Closed-loop comparisons also remain task-dependent: on Push-T, liquid primarily improves latency while achieving success rates comparable to diffusion; on PointMaze, the liquid model improves task-completion metrics; and on RoboMimic Can, liquid substantially reduces closed-loop action-tracking error. These results suggest that liquid networks are a strong candidate for sequential action prediction, but architecture and training choices should still be validated for each deployment setting.
 
 A critical observation: despite achieving $2.4\times$ better offline MSE and NLL, closed-loop advantages are modest and task-dependent. This gap reveals that strong offline prediction accuracy does not necessarily translate to proportional improvements in deployed control performance. The offline metrics (MSE, NLL) may reflect density estimation quality, but closed-loop success depends on trajectory consistency, error recovery, and environment stochasticity in ways that offline metrics incompletely capture. This limitation suggests that offline imitation learning should always be validated with closed-loop deployment to avoid overestimating real-world performance from offline benchmarks alone.
 
 \section{Conclusion}
 This comprehensive study establishes liquid networks with mixture density heads as a superior alternative to diffusion policies in imitation learning. Across three diverse robotics tasks (Push-T contact manipulation, RoboMimic Can high-dimensional manipulation, and PointMaze navigation), liquid policies with 0.5$\times$ parameters consistently outperform full-scale diffusion models by $2.4$--$2.5\times$ on offline prediction accuracy (best-of-$K$ MSE) while running $1.8$--$2.0\times$ faster at inference. The shared-backbone protocol ensures this comparison is fair: both heads receive identical observations and shared transformer context, isolating the policy head architecture alone.
 
-Physics-based validation on Push-T using PyMunk demonstrates that liquid policies learn genuine action dynamics rather than memorizing statistical patterns. This, combined with superior accuracy across multimodal manipulation and bimodal navigation tasks, indicates that recurrent temporal modeling with explicit multimodality is fundamentally better suited to imitation learning than iterative noise-conditioned generation.
+Closed-loop validation across all three case studies demonstrates that liquid policies learn genuine control-relevant action dynamics rather than merely fitting offline statistics. This, combined with superior accuracy across multimodal manipulation and bimodal navigation tasks, indicates that recurrent temporal modeling with explicit multimodality is fundamentally better suited to imitation learning than iterative noise-conditioned generation.
 
-We argue that liquid networks should become the default choice for imitation learning practitioners: they are compact, fast, do not require distillation or denoising pipelines, and naturally handle multimodal action distributions. While accelerated diffusion methods~\cite{prasad2024consistency,wang2024onedp,hoeg2024sdp,wu2025lightdp} continue to improve, the evidence presented here suggests that for most robotics applications, a well-trained liquid policy is the more practical and efficient choice.
+We suggest that liquid networks are a highly practical and efficient option for imitation learning: they are compact, fast, do not require distillation or denoising pipelines, and naturally handle multimodal action distributions. While accelerated diffusion methods~\cite{prasad2024consistency,wang2024onedp,hoeg2024sdp,wu2025lightdp} continue to improve, the evidence presented here indicates that for many robotics applications, a well-trained liquid policy can offer significant advantages in practice.
 
 \newpage
 \appendix
@@ -275,7 +290,7 @@ Training fractions are 1\%, 2.15\%, 4.64\%, 10\%, 21.54\%, 46.42\%, and 100\%. F
 \begin{figure*}[!htb]
     \centering
     \includegraphics[width=0.95\linewidth]{best_of_k_curve_pusht_vs_robomimic_can_vs_pointmaze_fair_halfparam_deterministic_clip_120epochs.png}
-    \caption{Best-of-$K$ MSE across all three datasets. The liquid advantage persists across sample budgets: at $K=10$, liquid models outperform diffusion by $2.4$--$2.5\times$.}
+    \caption{Best-of-$K$ MSE across all three datasets (here, $K$ is the number of samples drawn for evaluation, not denoising steps). The liquid advantage persists across sample budgets: at $K=10$, liquid models outperform diffusion by $2.4$--$2.5\times$.}
     \label{fig:bestofk-all}
 \end{figure*}
 
@@ -296,7 +311,7 @@ Training fractions are 1\%, 2.15\%, 4.64\%, 10\%, 21.54\%, 46.42\%, and 100\%. F
 \begin{figure*}[!htb]
     \centering
     \includegraphics[width=0.95\linewidth]{diversity_vs_error_pusht_vs_robomimic_can_vs_pointmaze_fair_halfparam_deterministic_clip_120epochs.png}
-    \caption{Diversity--accuracy trade-off across all tasks (color = dataset, marker = model). Each point corresponds to one evaluation example using $K{=}10$ trajectory samples: the x-axis is sample diversity (spread among sampled trajectories) and the y-axis is best-of-10 MSE (lower is better). The desirable region is lower-left (accurate and diverse enough). Liquid samples (circles) and diffusion samples (triangles) are shown as semi-transparent clouds; large outlined markers denote per-dataset medians to improve readability. Across datasets, liquid tends to achieve lower best-of-10 error at comparable or moderately lower diversity, while diffusion often attains higher diversity but with a higher error floor.}
+    \caption{Diversity--accuracy trade-off across all tasks (color = dataset, marker = model). Each point corresponds to one evaluation example using $K{=}10$ trajectory samples (where $K$ is the number of samples drawn for evaluation, not denoising steps): the x-axis is sample diversity (spread among sampled trajectories) and the y-axis is best-of-10 MSE (lower is better). The desirable region is lower-left (accurate and diverse enough). Liquid samples (circles) and diffusion samples (triangles) are shown as semi-transparent clouds; large outlined markers denote per-dataset medians to improve readability. Across datasets, liquid tends to achieve lower best-of-10 error at comparable or moderately lower diversity, while diffusion often attains higher diversity but with a higher error floor.}
     \label{fig:diversity-all}
 \end{figure*}
 
@@ -335,7 +350,7 @@ The statement $T=\Omega(1/\epsilon)$ means that reducing error by one order of m
 \begin{equation}
 z_{k+1}=z_k+h\,\phi_h(z_k,k), \qquad k=0,\dots,T-1.
 \end{equation}
-Under standard consistency assumptions for first-order methods, the local truncation error is $\Theta(h^2)$. With Lipschitz dynamics, stability plus Gr\"onwall's inequality gives global terminal error bounded by
+Under standard consistency assumptions for first-order methods, the local truncation error is $\Theta(h^2)$. With Lipschitz dynamics, stability plus Gr"onwall's inequality~\cite{coddington1956theory} gives global terminal error bounded by
 \begin{equation}
 \|z_T-\tau(1)\| \le C_1 h = C_1/T
 \end{equation}
@@ -347,7 +362,7 @@ with $C_0>0$. Therefore, any first-order iterative generator that guarantees ter
 \begin{equation}
 T \ge C_0/\epsilon,
 \end{equation}
-i.e., $T=\Omega(1/\epsilon)$. \hfill $\square$
+i.e., $T=\Omega(1/\epsilon)$.
 
 Neural ODE-style models (including liquid/CfC-style continuous-time parameterizations) do not inherit this specific first-order iterative-generator lower bound because they learn a shared vector field and then integrate it, rather than learning a distinct correction map for each denoising/refinement step. In practice, this changes the scaling regime: with an order-$p$ integrator, numerical error decreases as $O(h^p)$, so required function evaluations scale like $O(\epsilon^{-1/p})$ (up to constants and adaptivity effects), which is strictly better than $O(1/\epsilon)$ for $p>1$.
 
