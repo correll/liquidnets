@@ -14,16 +14,16 @@ Run notebooks in this order:
    Generate analysis figures and tables for the paper.
 4. **04_pusht_closedloop.ipynb**  
    Run Push-T closed-loop evaluation (Table 2 results).
-5. **05_libero_comparison.ipynb**  
-   Optional: Extended analysis and comparisons.
-6. **06_robomimic_can_closedloop_eval.ipynb**  
+5. **05_robomimic_can_closedloop_eval.ipynb**  
    Run RoboMimic Can checkpoint evaluation used in the paper's deployment table.
+6. **06_libero_comparison.ipynb**  
+   Optional: Extended analysis and comparisons.
 
 ---
 
 ## Environment Setup
 
-- `.venv` (Python 3.14): Main training and analysis notebooks (`01`, `03`, `04`, `05`)
+- `.venv` (Python 3.14): Main training and analysis notebooks (`01`, `03`, `04`, `05`, `06`)
 - `.venv312` (Python 3.12): PointMaze with MuJoCo notebook (`02`)
 
 PointMaze requires `mujoco` and `gymnasium-robotics` in the Python 3.12 environment.
@@ -101,3 +101,21 @@ All experiments follow a **fair shared-backbone protocol**:
 
 The `transfomer/` folder contains earlier baseline implementations and exploratory notebooks.  
 The numbered notebooks (01–06) represent the current canonical pipeline for paper reproducibility.
+
+---
+
+## Citation
+
+If you use this code or findings in your research, please cite:
+
+```bibtex
+@article{correll2026liquid,
+  title={Liquid Networks with Mixture Density Heads for Efficient Imitation Learning},
+  author={Correll, Nikolaus},
+  journal={arXiv preprint arXiv:2603.27058},
+  year={2026}
+}
+```
+
+**Reference:**  
+Correll, N. (2026). Liquid Networks with Mixture Density Heads for Efficient Imitation Learning. *arXiv preprint arXiv:2603.27058*. https://doi.org/10.48550/arXiv.2603.27058

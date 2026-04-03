@@ -28,6 +28,8 @@ transfomer/
 # Legacy scratch files
 *.tmp
 *.bak
+*.zip
+*.gz
 
 # Paper build outputs (keep source files)
 paper/*.aux
