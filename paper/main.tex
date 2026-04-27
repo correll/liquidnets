@@ -88,7 +88,7 @@ For all tasks, we window trajectories as:
 \end{equation}
 with $H_o=2$ (history window) and $H_p=16$ (prediction horizon). Observations and actions are normalized to $[-1,1]$ using min-max scaling:
 \begin{equation}
-    ilde{x}=2\frac{x-x_{\min}}{x_{\max}-x_{\min}}-1.
+    \widetilde{x}=2\frac{x-x_{\min}}{x_{\max}-x_{\min}}-1.
 \end{equation}
 
 \section{System Architecture for Evaluation}
@@ -197,6 +197,9 @@ Liquid achieves higher success and distance-success rates than diffusion under t
 
 \paragraph{Closed-Loop Validation on RoboMimic Can.}
 For RoboMimic Can, we evaluate the released checkpoints in full closed-loop MuJoCo rollouts over 10 validation episodes. As a sanity check, replaying the stored expert actions yields 80\% task success, confirming that the simulator reset and success criterion function correctly. Both the liquid and diffusion policies achieve \textbf{0\% task success}, with mean final dense rewards of $1.33 \times 10^{-3}$ (liquid) and $2.58 \times 10^{-5}$ (diffusion). This result is consistent with a structural offline-to-online deployment gap: the policies were trained purely via behavior cloning on fixed demonstration windows without any closed-loop simulator feedback, providing no mechanism to recover from the compounding errors that arise during live rollouts. Ablations toggling state normalization and diffusion stochasticity produced no meaningful change, confirming that the failure is not a tuning artifact. Despite 0\% binary success, liquid still achieves $6.6\times$ lower action-tracking error than diffusion ($0.3257 \pm 0.0492$ vs.\ $2.1633 \pm 0.0389$ mean per-episode $\ell_2$), reflecting the offline accuracy advantage and suggesting that liquid trajectories align more closely with the demonstrated behavior even when the strict pick-and-place criterion is not satisfied.
+
+\paragraph{LIBERO diagnostic rollout (drawer-close, preliminary).}
+We additionally ran a targeted LIBERO-90 diagnostic on \texttt{KITCHEN\_SCENE10\_close\_the\_top\_drawer\_of\_the\_cabinet} using fixed init states, 5-step zero-action warmup, 300-step horizon, and deterministic policy mode. Liquid achieved 0/10 success (success rate 0.000), return 0.000, and mean steps 300.0. Under the diagnostic proxy used in that run, liquid reported final proxy distance $0.1837 \pm 0.0109$, mean minimum distance $0.1781$, and mean improvement $0.1162$. Pi0 also remained at 0 success in the observed run segment; the first three reported episodes had final proxy distances $\{0.2508, 0.2572, 0.2370\}$ with corresponding improvements $\{0.0457, 0.0414, 0.0798\}$. We treat these LIBERO values as preliminary diagnostics (not a finalized benchmark table), since we were concurrently hardening proxy-key selection and Colab run-order behavior in the evaluation notebook.
 
 \begin{table*}[t]
     \centering
@@ -436,6 +439,33 @@ Splits are deterministic and stratified by trajectory. We use PyTorch's DataLoad
 
 \paragraph{Reproducibility.}
 All experiments use a fixed random seed (42) for PyTorch, NumPy, and Python's built-in random module. The experiment tag \texttt{fair\_halfparam\_deterministic\_clip\_120epochs} encodes the key settings: fair comparison (same context for both heads), half-parameter liquid vs full-parameter diffusion, deterministic evaluation (no stochastic dropout at test time), action clipping enabled, and 120 training epochs. This tag is used throughout the artifact to ensure all logged metrics correspond to the same configuration.
+
+\section{LIBERO Evaluation Protocol and Model Architecture Details}\label{app:libero-protocol}
+
+This appendix documents the concrete LIBERO evaluation setup used in our diagnostic and comparative runs.
+
+\paragraph{Task and simulator configuration.}
+We use LIBERO's MuJoCo-based \texttt{OffScreenRenderEnv} with \texttt{agentview} rendering at $224\times224$. The primary diagnostic task is \texttt{drawer\_close}, which resolves to BDDL file \texttt{libero\_90/KITCHEN\_SCENE10\_close\_the\_top\_drawer\_of\_the\_cabinet.bddl}. Evaluation horizon is 300 environment steps per episode.
+
+\paragraph{Reset protocol.}
+To align with LIBERO evaluator behavior and reduce reset variance, we resolve and load the corresponding \texttt{.pruned\_init} state file and apply: (1) fixed init-state index selection by episode seed, (2) environment \texttt{set\_init\_state(...)} application, and (3) 5 zero-action warmup steps before policy control. This protocol is applied per-episode via a reset wrapper.
+
+\paragraph{Observation tokenization.}
+Closed-loop tokenization uses an observation history of length $H_o=2$ with a stateful rolling buffer to match training-time temporal context. Each tokenized state contains 14 dimensions: end-effector position (3), end-effector quaternion (4), gripper state (2), and first 5 joint positions. Text conditioning uses CLIP tokenization of the task string.
+
+\paragraph{Policy heads and shared backbone.}
+Both policies share a frozen CLIP ViT-L/14 encoder and shared transformer temporal backbone ($d_{model}=768$, 12 heads, 8 layers in the base configuration; liquid uses a 7-layer head-side configuration under the half-parameter policy).
+\begin{itemize}
+    \item \textbf{Liquid head:} CfC/GRU recurrent core with hidden size 1536 and autoregressive decoding through an MDN head.
+    \item \textbf{Pi0-style head:} transformer-decoder-style head with hidden size 1792 and MDN output head.
+\end{itemize}
+Both use 8-component Gaussian mixtures, prediction horizon $H_p=16$, and deterministic rollout mode (mixture-component mode selection) for diagnostics.
+
+\paragraph{Inference and action handling.}
+Checkpoints are loaded with PyTorch 2.6-compatible \texttt{weights\_only} fallback handling and strict state-dict matching (including MDN key remapping when needed). All rollout inference uses \texttt{model.eval()} to disable dropout. Environment actions are clipped to configured bounds (default $[-1,1]$) with optional scaling diagnostics.
+
+\paragraph{Success and proxy reporting.}
+Primary task success is read from simulator-native success checks (e.g., \texttt{env.check\_success}) with wrapper-aware probing. When explicit scalar distance metrics are unavailable, a best-effort diagnostic proxy is computed from observation/info keys; this proxy is used only for debugging progress trends and is not treated as an official benchmark success metric.
 
 \bibliography{references}
 
